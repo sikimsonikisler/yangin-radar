@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YanginRadar — Yetkili Paneli</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚒</text></svg>">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { overflow: auto; display: block; }
+  .sarmal { max-width: 1180px; margin: 0 auto; padding: 18px 18px 60px; }
+  .uyari-kutu {
+    background: #3a2410; border: 1px solid #7a4a17; color: #ffd9a8;
+    border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-bottom: 18px; line-height: 1.55;
+  }
+  .anahtar-satiri { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+  .anahtar-satiri input {
+    font: inherit; background: var(--zemin-2); color: var(--metin);
+    border: 1px solid var(--cizgi); border-radius: 8px; padding: 8px 11px; min-width: 240px;
+  }
+  .sekmeler { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--cizgi); }
+  .sekmeler button {
+    background: none; border: none; border-bottom: 2px solid transparent; color: var(--metin-soluk);
+    padding: 9px 14px; font: inherit; font-size: 13.5px; cursor: pointer;
+  }
+  .sekmeler button.aktif { color: var(--metin); border-bottom-color: var(--alev); }
+  .kart {
+    background: var(--zemin-2); border: 1px solid var(--cizgi); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .kart-ust { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .kart-ust h3 { margin: 0; font-size: 15.5px; }
+  .kart-ust .no { color: var(--metin-soluk); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .alan-izgara {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 6px 16px; font-size: 12.5px; color: var(--metin-soluk); margin: 8px 0;
+  }
+  .alan-izgara b { color: var(--metin); font-weight: 600; }
+  .aksiyon-satiri { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .dispatch-kayit {
+    background: var(--zemin); border: 1px solid var(--cizgi); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px; font-size: 12px;
+  }
+  .dispatch-kayit pre {
+    margin: 8px 0 0; white-space: pre-wrap; color: var(--metin-soluk);
+    font-size: 11.5px; line-height: 1.5;
+  }
+  .bos { color: var(--metin-soluk); font-size: 13.5px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="sarmal">
+
+  <header id="ustBar" style="border-radius:12px;margin-bottom:16px">
+    <div class="marka">
+      <span class="logo">🚒</span>
+      <div>
+        <h1>Yetkili paneli</h1>
+        <p>İhbar doğrulama, durum yönetimi ve aktarım kuyruğu</p>
+      </div>
+    </div>
+    <div class="ust-aksiyon" style="margin-left:auto">
+      <a class="dugme sade" href="index.html">← Haritaya dön</a>
+      <button id="yenile" class="dugme birincil">Yenile</button>
+    </div>
+  </header>
+
+  <div class="uyari-kutu">
+    <strong>Bu panel gerçek acil çağrı hatlarına bağlı değildir.</strong>
+    “Yetkiliye ilet” düğmesi, uygulama içinde bir aktarım kaydı (giden kutusu) oluşturur ve log’a yazar;
+    112, 177 ya da herhangi bir kuruma otomatik bildirim <em>göndermez</em>. Gerçek bir kuruma otomatik
+    ihbar akışı, ilgili kurumun yazılı izni ve resmî entegrasyon kanalı olmadan devreye alınmamalıdır.
+    Ayrıca buradaki paylaşılan anahtar yalnızca geliştirme içindir; dağıtımda kurumsal kimlik doğrulama
+    (OAuth2 / SSO) kullanın.
+  </div>
+
+  <div class="anahtar-satiri">
+    <label style="font-size:13px;color:var(--metin-soluk)">Yetkili anahtarı</label>
+    <input type="password" id="anahtar" placeholder="X-Admin-Token">
+    <button id="anahtarKaydet" class="dugme">Kaydet</button>
+    <span id="firmsDurum" class="rozet"><i></i><span>uydu akışı: —</span></span>
+    <button id="firmsYenile" class="dugme sade kucuk">Uydu verisini şimdi çek</button>
+  </div>
+
+  <nav class="sekmeler">
+    <button data-sekme="bekleyen" class="aktif">Bekleyenler</button>
+    <button data-sekme="tumu">Tüm kayıtlar</button>
+    <button data-sekme="aktarim">Aktarım kuyruğu</button>
+  </nav>
+
+  <div id="icerik"></div>
+</div>
+
+<div id="tost"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  let sekme = 'bekleyen';
+  let kayitlar = [];
+
+  const kacar = (s) => String(s ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const anahtar = () => localStorage.getItem('yr-admin-token') || '';
+
+  function tost(mesaj, tur = '') {
+    const el = document.createElement('div');
+    el.className = tur;
+    el.textContent = mesaj;
+    $('#tost').appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  }
+
+  async function istek(url, secenek = {}) {
+    secenek.headers = Object.assign({ 'X-Admin-Token': anahtar() }, secenek.headers || {});
+    const yanit = await fetch(url, secenek);
+    const govde = await yanit.json().catch(() => null);
+    if (!yanit.ok) throw new Error((govde && govde.hata) || ('HTTP ' + yanit.status));
+    return govde;
+  }
+
+  function kartCiz(v) {
+    const fotograflar = (v.photos || []).map((p) => `
+      <figure>
+        <a href="${p.url}" target="_blank" rel="noopener">
+          <img src="${p.url}" alt="Kanıt fotoğrafı" loading="lazy"></a>
+        <figcaption class="v-${p.verdict}">${kacar(p.verdictLabel)}<br>${p.score}/100</figcaption>
+      </figure>`).join('');
+
+    const rapor = (v.photos || []).map((p, i) =>
+      `— ${i + 1}. fotoğraf —\n` + (p.checks || []).map(kacar).join('\n')).join('\n\n');
+
+    return `
+      <article class="kart" data-id="${v.id}">
+        <div class="kart-ust">
+          <h3>${kacar(v.severityLabel)}</h3>
+          <span class="etiket e-${v.status}">${kacar(v.statusLabel)}</span>
+          <span class="no">#${v.id} · ${new Date(v.createdAt).toLocaleString('tr-TR')}</span>
+          ${v.dispatched ? '<span class="etiket e-SONDURULDU">iletildi</span>' : ''}
+        </div>
+
+        <div class="alan-izgara">
+          <div>Konum <b>${v.lat.toFixed(5)}, ${v.lon.toFixed(5)}</b></div>
+          <div>İl / İlçe <b>${kacar([v.il, v.ilce].filter(Boolean).join(' / ') || '—')}</b></div>
+          <div>Kaynak <b>${kacar(v.sourceLabel)}</b></div>
+          <div>Bildiren <b>${kacar(v.reporterAlias || 'Anonim')}</b></div>
+          <div>Güven <b>${v.confidence}/100</b></div>
+          <div>Destek / ret <b>${v.confirmCount} / ${v.denyCount}</b></div>
+        </div>
+
+        <div class="guven-cubuk"><i style="width:${v.confidence}%"></i></div>
+        ${v.aciklama ? `<p class="pop-aciklama">${kacar(v.aciklama)}</p>` : ''}
+        ${fotograflar ? `<div class="pop-foto">${fotograflar}</div>`
+                      : '<p class="ipucu">Fotoğraf kanıtı yok.</p>'}
+        ${rapor ? `<details class="dogrulama-detay">
+            <summary>Fotoğraf doğrulama raporu</summary>${kacar(rapor)}</details>` : ''}
+
+        <div class="aksiyon-satiri">
+          <button class="dugme kucuk" data-eylem="INCELENIYOR">İncelemeye al</button>
+          <button class="dugme kucuk" data-eylem="DOGRULANDI">Doğrula</button>
+          <button class="dugme kucuk" data-eylem="REDDEDILDI">Reddet</button>
+          <button class="dugme kucuk" data-eylem="SONDURULDU">Söndürüldü</button>
+          <button class="dugme kucuk birincil" data-eylem="ilet">📨 Yetkiliye ilet</button>
+          <a class="dugme kucuk sade" target="_blank" rel="noopener"
+             href="https://www.openstreetmap.org/?mlat=${v.lat}&mlon=${v.lon}#map=14/${v.lat}/${v.lon}">
+             Haritada aç</a>
+        </div>
+      </article>`;
+  }
+
+  function aktarimCiz(d) {
+    return `
+      <div class="dispatch-kayit">
+        <strong>#${d.id}</strong> · ihbar ${d.fireReportId} · ${kacar(d.channel)} ·
+        <span class="v-${d.state === 'GONDERILDI' ? 'GECERLI' : 'SUPHELI'}">${kacar(d.state)}</span> ·
+        ${new Date(d.createdAt).toLocaleString('tr-TR')}
+        <pre>${kacar(d.payload)}</pre>
+      </div>`;
+  }
+
+  async function ciz() {
+    const kap = $('#icerik');
+    if (!anahtar()) {
+      kap.innerHTML = '<p class="bos">Devam etmek için yetkili anahtarını girin.</p>';
+      return;
+    }
+
+    try {
+      if (sekme === 'aktarim') {
+        const liste = await istek('/api/admin/dispatches');
+        kap.innerHTML = liste.length
+          ? liste.map(aktarimCiz).join('')
+          : '<p class="bos">Aktarım kuyruğu boş.</p>';
+        return;
+      }
+
+      kayitlar = await (await fetch('/api/reports')).json();
+      let gorunen = kayitlar;
+      if (sekme === 'bekleyen') {
+        gorunen = kayitlar.filter((v) => v.status === 'BEKLIYOR' || v.status === 'INCELENIYOR');
+      }
+      gorunen = gorunen.slice().sort((a, b) => b.confidence - a.confidence);
+
+      kap.innerHTML = gorunen.length
+        ? gorunen.map(kartCiz).join('')
+        : '<p class="bos">Bu sekmede kayıt yok.</p>';
+    } catch (e) {
+      kap.innerHTML = `<p class="bos">Yüklenemedi: ${kacar(e.message)}</p>`;
+    }
+  }
+
+  async function firmsDurumu() {
+    const rozet = $('#firmsDurum');
+    if (!anahtar()) return;
+    try {
+      const s = await istek('/api/admin/firms/status');
+      rozet.className = 'rozet ' + (s.aktif ? 'canli' : 'kopuk');
+      rozet.querySelector('span').textContent = s.aktif
+        ? `uydu akışı açık (${s.dataset}) · ${s.sonSonuc}`
+        : 'uydu akışı kapalı — FIRMS anahtarı yok';
+    } catch (e) {
+      rozet.className = 'rozet kopuk';
+      rozet.querySelector('span').textContent = 'uydu akışı: ' + e.message;
+    }
+  }
+
+  $('#icerik').addEventListener('click', async (olay) => {
+    const dugme = olay.target.closest('button[data-eylem]');
+    if (!dugme) return;
+    const id = dugme.closest('.kart').dataset.id;
+    const eylem = dugme.dataset.eylem;
+    dugme.disabled = true;
+    try {
+      if (eylem === 'ilet') {
+        const sonuc = await istek(`/api/admin/reports/${id}/dispatch`, { method: 'POST' });
+        tost(`Aktarım kaydı oluşturuldu (${sonuc.state}). Hiçbir acil hatta bildirim gönderilmedi.`, 'iyi');
+      } else {
+        await istek(`/api/admin/reports/${id}/status?status=${eylem}`, { method: 'POST' });
+        tost('Durum güncellendi: ' + eylem, 'iyi');
+      }
+      await ciz();
+    } catch (e) {
+      tost('İşlem başarısız: ' + e.message, 'kotu');
+    } finally {
+      dugme.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('.sekmeler button').forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll('.sekmeler button').forEach((x) => x.classList.remove('aktif'));
+      b.classList.add('aktif');
+      sekme = b.dataset.sekme;
+      ciz();
+    };
+  });
+
+  $('#anahtarKaydet').onclick = () => {
+    localStorage.setItem('yr-admin-token', $('#anahtar').value.trim());
+    tost('Anahtar kaydedildi.', 'iyi');
+    ciz();
+    firmsDurumu();
+  };
+
+  $('#yenile').onclick = () => { ciz(); firmsDurumu(); };
+
+  $('#firmsYenile').onclick = async () => {
+    try {
+      const s = await istek('/api/admin/firms/refresh', { method: 'POST' });
+      tost(s.aktif ? `${s.eklenen} yeni uydu ısı noktası eklendi.` : s.mesaj, s.aktif ? 'iyi' : '');
+      ciz();
+      firmsDurumu();
+    } catch (e) {
+      tost('Uydu verisi çekilemedi: ' + e.message, 'kotu');
+    }
+  };
+
+  $('#anahtar').value = anahtar();
+  ciz();
+  firmsDurumu();
+})();
+</script>
+</body>
+</html>

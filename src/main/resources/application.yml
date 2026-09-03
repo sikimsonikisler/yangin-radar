@@ -1,0 +1,90 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: yangin-radar
+
+  datasource:
+    url: jdbc:h2:file:./data/yanginradar;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      # Semayi Flyway yonetiyor; Hibernate yalnizca varliklarla uyustugunu dogrular.
+      # Bir alan eklendiginde db/migration altina yeni bir V*.sql yazilmali.
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    # Zaten dolu olan gelistirme veritabani V1'i yeniden calistirmasin;
+    # var olan sema temel kabul edilip sonraki gocler uygulanir.
+    baseline-on-migrate: true
+    baseline-version: 1
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  servlet:
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 16MB
+
+  mvc:
+    async:
+      # SSE baglantilari kendiliginden kopmasin
+      request-timeout: -1
+
+yanginradar:
+  # Uygulama hazir olunca sayfayi tarayicida kendiliginden acar (gelistirme kolayligi).
+  tarayiciyi-ac: true
+
+  # Ilk aciliste ornek kayitlar eklenir. Uretimde false yapin.
+  demo-data: true
+
+  storage:
+    upload-dir: ./data/uploads
+
+  photo:
+    max-size-bytes: 12582912
+    # EXIF konumu ihbar noktasindan bu kadar uzaksa fotograf supheli sayilir
+    max-distance-meters: 3000
+    # Fotograf bu dakikadan eskiyse supheli sayilir
+    max-age-minutes: 360
+    # EXIF cekim zamani saat dilimi tasimaz; fotografta ofset yoksa bu varsayilir
+    assumed-zone: Europe/Istanbul
+    clock-skew-minutes: 30
+
+  firms:
+    enabled: true
+    # Ucretsiz anahtar: https://firms.modaps.eosdis.nasa.gov/api/area/
+    # Bos birakilirsa uydu akisi calismaz, uygulama vatandas ihbarlariyla surer.
+    map-key: ${FIRMS_MAP_KEY:}
+    base-url: https://firms.modaps.eosdis.nasa.gov/api/area/csv
+    dataset: VIIRS_SNPP_NRT
+    day-range: 1
+    # Turkiye kutusu: minLon,minLat,maxLon,maxLat
+    area: 25.5,35.7,45.0,42.3
+
+  attest:
+    # Apple App Attest: fotografin gercekten bizim imzali uygulamamizdan ve
+    # gercek bir cihazdan geldigini kanitlar. Team ID bos birakilirsa dogrulama
+    # yapilamaz - uygulama calisir ama fotograflar "cihaz dogrulanmadi" sayilir.
+    enabled: true
+    team-id: ${APPLE_TEAM_ID:}
+    bundle-id: com.yanginradar.app
+
+  moderation:
+    auto-verify-threshold: 75
+    admin-token: ${ADMIN_TOKEN:degistir-beni}
+    corroboration-radius-meters: 2500
+    corroboration-window-minutes: 180
+
+logging:
+  level:
+    com.yanginradar: INFO

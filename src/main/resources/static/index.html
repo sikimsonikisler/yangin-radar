@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>YanginRadar</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1216">
+<meta name="description" content="Türkiye'de yangınları canlı takip edin, gördüğünüzü fotoğrafla bildirin.">
+
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="YanginRadar">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="uygulama">
+
+  <header id="ustBar">
+    <div class="marka">
+      <img src="icon-192.png" alt="" width="26" height="26">
+      <h1>YanginRadar</h1>
+    </div>
+    <span id="baglantiRozet" class="rozet kopuk"><i></i><span>bağlanıyor</span></span>
+  </header>
+
+  <div id="acilSerit">
+    <strong>Acil: 112</strong> · <strong>Orman: 177</strong>
+    <span>— resmî ihbar hattı değildir</span>
+  </div>
+
+  <main id="govde">
+
+    <!-- ══════════════════════════ HARİTA ══════════════════════════ -->
+    <section class="sayfa etkin" id="sayfa-harita">
+      <div id="harita"></div>
+      <div id="haritaSayac"></div>
+    </section>
+
+    <!-- ═════════════════════════ İHBARLAR ═════════════════════════ -->
+    <section class="sayfa" id="sayfa-liste">
+      <div class="cip-serit" id="durumCipleri">
+        <button class="cip etkin" data-durum="hepsi">Hepsi</button>
+        <button class="cip" data-durum="DOGRULANDI">Doğrulandı</button>
+        <button class="cip" data-durum="BEKLIYOR">Bekleyen</button>
+        <button class="cip" data-durum="SONDURULDU">Söndürüldü</button>
+      </div>
+      <div id="kartlar" class="kaydir"></div>
+    </section>
+
+    <!-- ══════════════════════════ BİLDİR ══════════════════════════ -->
+    <section class="sayfa" id="sayfa-bildir">
+      <div class="adim-cizgisi">
+        <span class="adim etkin" data-adim="1">Konum</span>
+        <span class="adim" data-adim="2">Detay</span>
+        <span class="adim" data-adim="3">Fotoğraf</span>
+      </div>
+
+      <div class="kaydir" id="bildirGovde">
+
+        <!-- adım 1 -->
+        <div class="adim-sayfa etkin" data-adim="1">
+          <h2>Yangın nerede?</h2>
+          <p class="ipucu">Gördüğünüz noktayı haritada işaretleyin.</p>
+          <div id="secimHarita"></div>
+          <button id="konumumuKullan" class="dugme genis sade">
+            📍 Bulunduğum konumu kullan
+          </button>
+          <p class="konum-etiket">Seçilen: <code id="secilenKonum">henüz seçilmedi</code></p>
+          <button id="adim1Ileri" class="dugme genis birincil" disabled>Devam</button>
+        </div>
+
+        <!-- adım 2 -->
+        <div class="adim-sayfa" data-adim="2">
+          <h2>Ne görüyorsunuz?</h2>
+          <div class="secenek-izgara" id="buyuklukSecimi">
+            <button class="secenek" data-deger="DUMAN_GORULDU">
+              <span class="ikon">💨</span>Duman görüldü</button>
+            <button class="secenek etkin" data-deger="KUCUK_YANGIN">
+              <span class="ikon">🔥</span>Küçük yangın</button>
+            <button class="secenek" data-deger="BUYUK_YANGIN">
+              <span class="ikon">🔥🔥</span>Büyük yangın</button>
+            <button class="secenek" data-deger="HIZLA_YAYILIYOR">
+              <span class="ikon">🌪️</span>Hızla yayılıyor</button>
+          </div>
+
+          <label>Açıklama <span class="soluk">(isteğe bağlı)</span>
+            <textarea id="aciklamaAlani" rows="3" maxlength="1000"
+              placeholder="Rüzgâr yönü, yerleşime uzaklık, ulaşım yolu…"></textarea>
+          </label>
+
+          <div class="ikili">
+            <label>İl <input id="ilAlani" maxlength="80" placeholder="Muğla"></label>
+            <label>İlçe <input id="ilceAlani" maxlength="80" placeholder="Marmaris"></label>
+          </div>
+
+          <label>Adınız <span class="soluk">(isteğe bağlı)</span>
+            <input id="adAlani" maxlength="60" placeholder="Anonim">
+          </label>
+
+          <div class="alt-dugmeler">
+            <button class="dugme sade" data-geri="1">Geri</button>
+            <button id="adim2Ileri" class="dugme birincil buyu">Devam</button>
+          </div>
+        </div>
+
+        <!-- adım 3 -->
+        <div class="adim-sayfa" data-adim="3">
+          <h2>Fotoğraf ekleyin</h2>
+          <p class="ipucu">
+            Olay yerinde, telefonun kamerasıyla çekin. Konum ve zaman bilgisi taşıyan
+            fotoğraflar otomatik doğrulanır; ekran görüntüleri ve internetten indirilen
+            görseller elenir.
+          </p>
+
+          <label class="kamera-kutu" id="kameraKutu">
+            <span class="kamera-ikon">📷</span>
+            <span class="kamera-yazi">Fotoğraf çek veya seç</span>
+            <input type="file" id="fotografGirdi" accept="image/*" capture="environment" multiple hidden>
+          </label>
+          <div id="onizleme" class="onizleme"></div>
+
+          <div id="bildirHata" class="hata gizli"></div>
+
+          <div class="alt-dugmeler">
+            <button class="dugme sade" data-geri="2">Geri</button>
+            <button id="ihbarGonder" class="dugme birincil buyu">İhbarı gönder</button>
+          </div>
+          <button id="fotografsizGonder" class="dugme genis sade kucuk">
+            Fotoğrafsız gönder
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════ BİLGİ ═══════════════════════════ -->
+    <section class="sayfa" id="sayfa-bilgi">
+      <div class="kaydir">
+        <div class="sayac-izgara" id="sayaclar">
+          <div class="sayac"><span id="sToplam">–</span><label>Toplam kayıt</label></div>
+          <div class="sayac"><span id="sDogrulanan">–</span><label>Doğrulandı</label></div>
+          <div class="sayac"><span id="sBekleyen">–</span><label>Bekleyen</label></div>
+          <div class="sayac"><span id="sUydu">–</span><label>Uydu tespiti</label></div>
+        </div>
+
+        <div class="bilgi-kart acil">
+          <h3>Acil durumda</h3>
+          <a class="dugme genis acil-dugme" href="tel:112">📞 112 — Acil Çağrı</a>
+          <a class="dugme genis acil-dugme" href="tel:177">🌲 177 — Orman Yangını</a>
+          <p class="ipucu">
+            Yayılan bir yangın görüyorsanız beklemeden arayın. Bu uygulama resmî ihbar
+            hattı değildir; buraya girilen kayıtlar otomatik olarak itfaiyeye iletilmez.
+          </p>
+        </div>
+
+        <div class="bilgi-kart" id="kurulumKart" hidden>
+          <h3>Uygulamayı ana ekrana ekle</h3>
+          <p class="ipucu">Telefonunuzda uygulama gibi açılsın.</p>
+          <button id="kurDugmesi" class="dugme genis birincil">Ana ekrana ekle</button>
+        </div>
+
+        <div class="bilgi-kart">
+          <h3>Nasıl çalışıyor</h3>
+          <p class="ipucu">
+            Her ihbar 0–100 arası bir <strong>güven puanı</strong> alır. Fotoğrafın konum ve
+            zaman bilgisi ihbarla uyuşuyorsa puan yükselir; aynı kare başka bir ihbarda
+            kullanılmışsa ya da fotoğraf başka şehirden geliyorsa düşer. Yakında bir uydu
+            ısı noktası veya başka bağımsız ihbarlar varsa puan artar. Puanı yüksek olan
+            kayıtlar otomatik doğrulanır — kanıtlar çelişiyorsa karar bir yetkiliye bırakılır.
+          </p>
+        </div>
+
+        <div class="bilgi-kart">
+          <h3>Yetkili girişi</h3>
+          <a class="dugme genis sade" href="admin.html">Yetkili paneline git</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav id="sekmeler">
+    <button class="sekme etkin" data-sayfa="harita">
+      <svg viewBox="0 0 24 24"><path d="M9 3 3 5.5v16L9 19l6 2.5 6-2.5v-16L15 5.5 9 3Zm0 2.2 6 2.5v11.1l-6-2.5V5.2Z"/></svg>
+      <span>Harita</span>
+    </button>
+    <button class="sekme" data-sayfa="liste">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v2.5H4V5Zm0 5.75h16v2.5H4v-2.5ZM4 16.5h16V19H4v-2.5Z"/></svg>
+      <span>İhbarlar</span>
+    </button>
+    <button class="sekme bildir" data-sayfa="bildir">
+      <svg viewBox="0 0 24 24"><path d="M12 4a1.5 1.5 0 0 1 1.5 1.5v5h5a1.5 1.5 0 0 1 0 3h-5v5a1.5 1.5 0 0 1-3 0v-5h-5a1.5 1.5 0 0 1 0-3h5v-5A1.5 1.5 0 0 1 12 4Z"/></svg>
+      <span>Bildir</span>
+    </button>
+    <button class="sekme" data-sayfa="bilgi">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 4.2a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8ZM10.8 10.6h2.4v7h-2.4v-7Z"/></svg>
+      <span>Bilgi</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ihbar detay sayfası -->
+<div id="detay" class="tam-sayfa gizli">
+  <header class="detay-ust">
+    <button id="detayKapat" aria-label="Geri">‹</button>
+    <h2>İhbar detayı</h2>
+  </header>
+  <div class="kaydir" id="detayGovde"></div>
+</div>
+
+<div id="tost"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

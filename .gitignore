@@ -1,0 +1,31 @@
+# ---- Java / Maven ----
+target/
+*.iml
+
+# ---- Veritabani ve yuklenen dosyalar ----
+# Calisma verisi; kod degil. Yedegi elle alinir.
+data/
+
+# ---- IDE ----
+.idea/
+.vscode/
+
+# ---- macOS ----
+.DS_Store
+
+# ---- Xcode ----
+# Kullaniciya ozel pencere/duzen durumu - takim halinde surekli catisir.
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Derleme ciktilari
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.hmap
+
+# Swift Package Manager yerel durumu
+.swiftpm/
+Packages/
